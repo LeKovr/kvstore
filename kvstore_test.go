@@ -37,7 +37,7 @@ func TestKVStore(t *testing.T) {
 		t.Error("Expected err to be nil, but got:", err)
 	}
 
-	store, err := New(new(PhoneData), log) // , Config(&Flags{StoreName: "xx"}))
+	store, _ := New(new(PhoneData), log) // , Config(&Flags{StoreName: "xx"}))
 	defer store.Destroy()
 
 	k := "test"
