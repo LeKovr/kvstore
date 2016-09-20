@@ -11,6 +11,11 @@ kvstore
 
 [kvstore](https://github.com/LeKovr/kvstore) - simple in-memory key-value store with persistense.
 
+Features
+--------
+
+* [ ] setter Expire()
+
 License
 -------
 

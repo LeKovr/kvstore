@@ -5,10 +5,9 @@ package kvstore
 import (
 	"encoding/json"
 	"io/ioutil"
+	"log"
 	"os"
 	"sync"
-
-	"github.com/LeKovr/go-base/logger"
 )
 
 // -----------------------------------------------------------------------------
@@ -39,7 +38,7 @@ type Store struct {
 	itemType StoreData
 	changed  bool
 	lock     *sync.RWMutex
-	Log      *logger.Log
+	Log      *log.Logger
 	Config   *Flags
 }
 
@@ -64,10 +63,10 @@ func (s *Store) setConfig(c *Flags) error {
 // -----------------------------------------------------------------------------
 
 // New - store constructor
-func New(t StoreData, log *logger.Log, options ...func(*Store) error) (*Store, error) {
+func New(t StoreData, logger *log.Logger, options ...func(*Store) error) (*Store, error) {
 
 	d := make(DataMap)
-	s := Store{changed: false, data: d, itemType: t, Log: log.WithField("in", "kvstore")}
+	s := Store{changed: false, data: d, itemType: t, Log: logger}
 
 	for _, option := range options {
 		err := option(&s)
@@ -103,7 +102,7 @@ func (s *Store) Set(key string, d StoreData) bool {
 	dd, _ := d.Init()
 	s.data[key] = dd
 	s.changed = true
-	s.Log.Debugf("in set: %+v", s)
+	s.Log.Printf("debug: in set: %+v", s)
 	return ok
 
 }
@@ -115,7 +114,7 @@ func (s Store) Get(key string) (StoreData, bool) {
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 	d, ok := s.data[key]
-	s.Log.Debugf("in get %s: (%v) %+v", key, ok, d)
+	s.Log.Printf("debug: in get %s: (%v) %+v", key, ok, d)
 	return d, ok
 }
 
@@ -130,6 +129,17 @@ func (s *Store) Del(key string) bool {
 	return ok
 }
 
+// Keys returns list of store keys
+func (s Store) Keys() []string {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	keys := make([]string, 0, len(s.data))
+	for k := range s.data {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 // -----------------------------------------------------------------------------
 
 // Load reads json file and places it in store
@@ -139,18 +149,18 @@ func (s *Store) Load() {
 
 	if _, err := os.Stat(name); os.IsNotExist(err) {
 		// path/to/whatever does not exist
-		s.Log.Infof("Store file %s does not exists, setup empty store", name)
+		s.Log.Printf("info: Store file %s does not exists, setup empty store", name)
 		return
 	}
 	file, err := ioutil.ReadFile(name)
 	if err != nil {
-		s.Log.Infof("Setup empty store for %s because %+v", name, err)
+		s.Log.Printf("info: Setup empty store for %s because %+v", name, err)
 		return
 	}
 	var data map[string]json.RawMessage
 	err = json.Unmarshal(file, &data)
 	if err != nil {
-		s.Log.Errorf("Parse store %s error: %+v", name, err)
+		s.Log.Printf("error: Parse store %s error: %+v", name, err)
 	}
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -158,7 +168,7 @@ func (s *Store) Load() {
 	for k, thing := range data {
 		db[k], err = s.itemType.Fetch([]byte(thing))
 		if err != nil {
-			s.Log.Errorf("Item %s unmarshal error: %+v", k, err)
+			s.Log.Printf("error: Item %s unmarshal error: %+v", k, err)
 		}
 	}
 
@@ -170,7 +180,7 @@ func (s *Store) Load() {
 
 // Save saves store into json file
 func (s *Store) Save() bool {
-	s.Log.Debugf("in save: %+v", s.data)
+	s.Log.Printf("debug: in save: %+v", s.data)
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	if len(s.data) == 0 {
@@ -182,7 +192,7 @@ func (s *Store) Save() bool {
 	a, _ := json.MarshalIndent(s.data, "   ", "   ")
 	err := ioutil.WriteFile(s.Config.StoreName, a, 0600)
 	if err != nil {
-		s.Log.Errorf("Save store %s error: %+v", s.Config.StoreName, err)
+		s.Log.Printf("error: Save store %s error: %+v", s.Config.StoreName, err)
 	}
 	s.changed = false
 	return true
